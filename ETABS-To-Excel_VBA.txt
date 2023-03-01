@@ -1,0 +1,209 @@
+Sub Button2_Click()
+        'Initialize all variables for beam
+        Dim beamSection As Variant
+        Dim beamJointi As Variant
+        Dim beamJointJ As Variant
+        Dim beamReleasei As Variant
+        Dim beamReleasej As Variant
+        Dim beamSystem As Variant
+        Dim beamID As Variant
+        
+        
+        'Initialize all variables for column
+        Dim columnSection As Variant
+        Dim columnJointi As Variant
+        Dim columnJointJ As Variant
+        Dim columnReleasei As Variant
+        Dim columnReleasej As Variant
+        Dim columnSystem As Variant
+        Dim columnID As Variant
+        
+        'Initialize all variables for brace
+        Dim braceSection As Variant
+        Dim braceJointi As Variant
+        Dim braceJointJ As Variant
+        Dim braceReleasei As Variant
+        Dim braceReleasej As Variant
+        Dim braceSystem As Variant
+        Dim braceID As Variant
+        
+        
+        'Initialize all variables for diaphragm
+        Dim diaSection As Variant
+        Dim diaJ1 As Variant
+        Dim diaJ2 As Variant
+        Dim diaJ3 As Variant
+        Dim diaJ4 As Variant
+        Dim diaOrient As Variant
+        Dim diaID As Variant
+        
+        'Initialize all variables for line Loads
+        Dim lineLoadID As Variant
+        Dim lineLoadJointi As Variant
+        Dim lineLoadJointJ As Variant
+        Dim lineLoadFx As Variant
+        Dim lineLoadFy As Variant
+        Dim lineLoadFz As Variant
+        Dim lineLoadCase As Variant
+        Dim lineLoadSection As Variant
+    
+        
+        'Initialize counter and misc variables
+        Dim beamTotal As Integer
+        Dim columnTotal As Integer
+        Dim braceTotal As Integer
+        Dim diaTotal As Integer
+        Dim lineLoadTotal As Integer
+        Dim i As Integer
+        Dim j As Integer
+        
+        'Initialize all variables sent into ETABS
+        Dim x() As Double 'for diaphragms
+        Dim y() As Double
+        Dim z() As Double
+        
+        Dim section As String 'for frames
+        Dim name As String
+        Dim ii() As Boolean
+        Dim jj() As Boolean
+        Dim startValue() As Double
+        Dim endValue() As Double
+        Dim pinVal() As Double
+        Dim fixVal() As Double
+        ReDim ii(5)
+        ReDim jj(5)
+        ReDim startValue(5)
+        ReDim endValue(5)
+        ReDim pinVal(5)
+        ReDim fixVal(5)
+        Dim pin() As Boolean
+        Dim fixed() As Boolean
+        
+        ReDim pin(5) 'sets up an array of size 6, all values are default set to false
+        ReDim fixed(5)
+        
+        
+        pin(4) = True 'M22 (only values set to True will have the stiffness overwritten, this is essentially an extra layer of protection for overwriting stiffness)
+        pin(5) = True 'M33
+        
+        pinVal(4) = 0 ' this will have a stiffness of 0 k*in, these values have units associated with them.
+        pinVal(5) = 0 'the other pinVal and fixVal values are not assigned here, because they do not need to be overwritten
+        
+        
+        'Grab Beam Info
+            Worksheets("beam").Activate
+            beamID = Range("A2", Range("A2").End(xlDown)).Value
+            beamSection = Range("B2", Range("B2").End(xlDown)).Value
+            beamJointi = Range("C2", Range("E2").End(xlDown)).Value
+            beamJointJ = Range("F2", Range("H2").End(xlDown)).Value
+            beamReleasei = Range("I2", Range("I2").End(xlDown)).Value
+            beamReleasej = Range("J2", Range("J2").End(xlDown)).Value
+            beamSystem = Range("L2", Range("L2").End(xlDown)).Value
+            
+            'count the total amount of beams
+            beamTotal = UBound(beamSection) - LBound(beamSection) + 1
+        
+        
+        'Grab column info
+            Worksheets("column").Activate
+            columnID = Range("A2", Range("A2").End(xlDown)).Value
+            columnSection = Range("B2", Range("B2").End(xlDown)).Value
+            columnJointi = Range("C2", Range("E2").End(xlDown)).Value
+            columnJointJ = Range("F2", Range("H2").End(xlDown)).Value
+            columnReleasei = Range("I2", Range("I2").End(xlDown)).Value
+            columnReleasej = Range("J2", Range("J2").End(xlDown)).Value
+            columnRot = Range("K2", Range("K2").End(xlDown)).Value
+            columnSystem = Range("M2", Range("M2").End(xlDown)).Value
+            
+            'grab total number of columns
+            columnTotal = UBound(columnSection) - LBound(columnSection) + 1
+            
+            
+        'Grab brace info
+            Worksheets("brace").Activate
+            braceID = Range("A2", Range("A2").End(xlDown)).Value
+            braceSection = Range("B2", Range("B2").End(xlDown)).Value
+            braceJointi = Range("C2", Range("E2").End(xlDown)).Value
+            braceJointJ = Range("F2", Range("H2").End(xlDown)).Value
+            braceReleasei = Range("I2", Range("I2").End(xlDown)).Value
+            braceReleasej = Range("J2", Range("J2").End(xlDown)).Value
+            braceSystem = Range("M2", Range("M2").End(xlDown)).Value
+            
+            'grab total number of braces
+            braceTotal = UBound(braceSection) - LBound(braceSection) + 1
+          
+            
+        'Grab Diaphragm info
+            Worksheets("diaphragm").Activate
+            diaID = Range("A2", Range("A2").End(xlDown)).Value
+            diaSection = Range("B2", Range("B2").End(xlDown)).Value
+            diaJ1 = Range("C2", Range("E2").End(xlDown)).Value
+            diaJ2 = Range("F2", Range("H2").End(xlDown)).Value
+            diaJ3 = Range("I2", Range("K2").End(xlDown)).Value
+            diaJ4 = Range("L2", Range("N2").End(xlDown)).Value
+            diaOrient = Range("O2", Range("O2").End(xlDown)).Value
+            
+            'Count the total number of area sections
+            diaTotal = UBound(diaSection) - LBound(diaSection) + 1
+            
+        'Grab lineLoad Info
+            Worksheets("lineLoad").Activate
+            lineLoadID = Range("A2", Range("A2").End(xlDown)).Value
+            lineLoadCase = Range("B2", Range("B2").End(xlDown)).Value
+            lineLoadJointi = Range("C2", Range("E2").End(xlDown)).Value
+            lineLoadJointJ = Range("F2", Range("H2").End(xlDown)).Value
+            lineLoadFx = Range("I2", Range("I2").End(xlDown)).Value
+            lineLoadFy = Range("J2", Range("J2").End(xlDown)).Value
+            lineLoadFz = Range("K2", Range("K2").End(xlDown)).Value
+            
+            'count the total amount of lineLoads
+            lineLoadTotal = UBound(lineLoadID) - LBound(lineLoadID) + 1
+      ReDim lineLoadSection(lineLoadTotal)
+      
+      
+      
+      
+    'Loop through all line loads to match them up with the appropriate beam. Note line loads may only exist over a single beam to match
+    Dim Flag As Boolean
+    Flag = True
+    
+    Dim deg As Long 'create a value for the degree of precision, use when rounding points to find matches
+    deg = 2 ' adjust this value if geometry beccomes tight
+    For i = 1 To lineLoadTotal
+                loadi = Round(lineLoadJointi(i, 1), deg) & Round(lineLoadJointi(i, 2), deg) & Round(lineLoadJointi(i, 3), deg)
+                loadj = Round(lineLoadJointJ(i, 1), deg) & Round(lineLoadJointJ(i, 2), deg) & Round(lineLoadJointJ(i, 3), deg)
+        Flag = True
+        
+            For j = 1 To beamTotal
+              If Flag = True Then 'if we haven't reached a match with the current lineLoad, check the next beam
+                beami = Round(beamJointi(j, 1), deg) & Round(beamJointi(j, 2), deg) & Round(beamJointi(j, 3), deg)
+                beamj = Round(beamJointJ(j, 1), deg) & Round(beamJointJ(j, 2), deg) & Round(beamJointJ(j, 3), deg)
+                
+                
+                'Check if the first node lines up with the first
+                If loadi = beami And Flag = True Then
+                    If loadj = beamj Then
+                        lineLoadSection(i) = beamID(j, 1) 'assign the matching index
+                        Flag = False 'exit the loop if there's a match
+                         Debug.Print lineLoadID(i, 1)
+                    End If
+                End If
+                
+                'Check if the first node lines up with the second
+                If loadj = beami And Flag = True Then
+                    If loadi = beamj Then
+                        lineLoadSection(i) = beamID(j, 1)
+                        Flag = False
+                        Debug.Print lineLoadID(i, 1)
+                    End If
+                End If
+               End If
+            Next j 'go to the next beam
+            Debug.Print "Iterating on i = " & i
+        Flag = False 'if we didn't reach a match, then Do loop will exit
+        
+        
+    Next i 'go to the next line load
+'End of loop to match line loads ---------------------
+
+End Sub
