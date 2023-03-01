@@ -1,0 +1,476 @@
+Sub Button1_Click()
+'Script starts an instance of ETABS V17 and use ETABS API to populate new model from the data in the Excel sheets
+
+'Reset any Time & Description values
+    Range("E18:E23") = ""
+    Range("E18") = "IP"
+    Range("F18:F23") = ""
+'Reset color values
+    Range("E14:H14").Interior.Color = RGB(255, 255, 255)
+    Range("E14").Interior.Color = RGB(222, 233, 252) 'sets a faded color to indicate in progress
+    
+'set the following flag to True to attach to an existing instance of the program
+  'otherwise a new instance of the program will be started
+  Dim AttachToInstance As Boolean
+  AttachToInstance = False
+
+  'set the following flag to True to manually specify the path to ETABS.exe
+  'this allows for a connection to a version of ETABS other than the latest installation
+  'otherwise the latest installed version of ETABS will be launched
+  Dim SpecifyPath As Boolean
+  SpecifyPath = False
+
+  'if the above flag is set to True, specify the path to ETABS below
+  Dim ProgramPath As String
+  'ProgramPath = "C:\Program Files (x86)\Computers and Structures\ETABS 17\ETABS.exe"
+
+  'full path to the model
+  'set it to the desired path of your model
+  Dim ModelDirectory As String
+  ModelDirectory = Range("B4").Value
+  If Len(Dir(ModelDirectory, vbDirectory)) = 0 Then
+    MkDir ModelDirectory
+  End If
+
+  Dim ModelName As String
+  ModelName = Range("B8").Value
+
+  Dim ModelPath As String
+  ModelPath = ModelDirectory & Application.PathSeparator & ModelName
+Application.Wait (Now + TimeValue("0:00:1"))
+  'create API helper object
+  Dim myHelper As cHelper
+  Set myHelper = New Helper
+Application.Wait (Now + TimeValue("0:00:1"))
+  'dimension the ETABS Object as cOAPI type
+  Dim myETABSObject As cOAPI
+  Set myETABSObject = Nothing
+
+  'use ret to check return values of API calls
+  Dim ret As Long
+Application.Wait (Now + TimeValue("0:00:1"))
+'create an instance of the ETABS object from the latest installed ETABS
+Set myETABSObject = myHelper.CreateObjectProgID("CSI.ETABS.API.ETABSObject")
+Application.Wait (Now + TimeValue("0:00:1"))
+
+'start ETABS application
+myETABSObject.ApplicationStart
+Application.Wait (Now + TimeValue("0:00:1"))
+
+  'get a reference to cSapModel to access all OAPI classes and functions
+  Dim mySapModel As ETABS2016.cSapModel
+  Set mySapModel = myETABSObject.SapModel
+
+  'initialize model
+  ret = mySapModel.InitializeNewModel()
+    'Place current time into excel sheet
+    Range("E18").Value = Time()
+    Range("E19").Value = "IP"
+    Range("E14").Interior.Color = RGB(148, 185, 255) 'sets a dark blue color to indicate complete
+    Range("F14").Interior.Color = RGB(222, 233, 252)
+    Application.Wait (Now + TimeValue("0:00:1"))
+ 'open an existing file - If no file exists, run the Save example first.
+ret = mySapModel.File.OpenFile(ModelPath)
+'Application.Wait (Now + TimeValue("0:00:10"))
+
+    'Unlock model
+    ret = mySapModel.SetModelIsLocked(False)
+
+'-----GRAB STRUCTURAL INFO FROM THE EXCEL SPREADSHEET-----------------------------
+'--------------------------------------------------------------------------------
+
+        'Note: all variables initialized as Variant will have Double typecast for numerics, String for non-numerics
+        
+        'Initialize all variables for beam
+        Dim beamSection As Variant
+        Dim beamJointi As Variant
+        Dim beamJointJ As Variant
+        Dim beamReleasei As Variant
+        Dim beamReleasej As Variant
+        Dim beamSystem As Variant
+        Dim beamID As Variant
+        
+        
+        'Initialize all variables for column
+        Dim columnSection As Variant
+        Dim columnJointi As Variant
+        Dim columnJointJ As Variant
+        Dim columnReleasei As Variant
+        Dim columnReleasej As Variant
+        Dim columnSystem As Variant
+        Dim columnID As Variant
+        
+        'Initialize all variables for brace
+        Dim braceSection As Variant
+        Dim braceJointi As Variant
+        Dim braceJointJ As Variant
+        Dim braceReleasei As Variant
+        Dim braceReleasej As Variant
+        Dim braceSystem As Variant
+        Dim braceID As Variant
+        
+        
+        'Initialize all variables for diaphragm
+        Dim diaSection As Variant
+        Dim diaJ1 As Variant
+        Dim diaJ2 As Variant
+        Dim diaJ3 As Variant
+        Dim diaJ4 As Variant
+        Dim diaOrient As Variant
+        Dim diaID As Variant
+        
+        'Initialize all variables for line Loads
+        Dim lineLoadID As Variant
+        Dim lineLoadJointi As Variant
+        Dim lineLoadJointJ As Variant
+        Dim lineLoadFx As Variant
+        Dim lineLoadFy As Variant
+        Dim lineLoadFz As Variant
+        Dim lineLoadCase As Variant
+        Dim lineLoadSection As Variant
+    
+        
+        'Initialize counter and misc variables
+        Dim beamTotal As Integer
+        Dim columnTotal As Integer
+        Dim braceTotal As Integer
+        Dim diaTotal As Integer
+        Dim lineLoadTotal As Integer
+        Dim i As Integer
+        Dim j As Integer
+        
+        'Initialize all variables sent into ETABS
+        Dim x() As Double 'for diaphragms
+        Dim y() As Double
+        Dim z() As Double
+        
+        Dim section As String 'for frames
+        Dim name As String
+        Dim ii() As Boolean
+        Dim jj() As Boolean
+        Dim startValue() As Double
+        Dim endValue() As Double
+        Dim pinVal() As Double
+        Dim fixVal() As Double
+        ReDim ii(5)
+        ReDim jj(5)
+        ReDim startValue(5)
+        ReDim endValue(5)
+        ReDim pinVal(5)
+        ReDim fixVal(5)
+        Dim pin() As Boolean
+        Dim fixed() As Boolean
+        
+        ReDim pin(5) 'sets up an array of size 6, all values are default set to false
+        ReDim fixed(5)
+        
+        
+        pin(4) = True 'M22 (only values set to True will have the stiffness overwritten, this is essentially an extra layer of protection for overwriting stiffness)
+        pin(5) = True 'M33
+        
+        pinVal(4) = 0 ' this will have a stiffness of 0 k*in, these values have units associated with them.
+        pinVal(5) = 0 'the other pinVal and fixVal values are not assigned here, because they do not need to be overwritten
+        
+        
+        'Grab Beam Info
+            Worksheets("beam").Activate
+            beamID = Range("A2", Range("A2").End(xlDown)).Value
+            beamSection = Range("B2", Range("B2").End(xlDown)).Value
+            beamJointi = Range("C2", Range("E2").End(xlDown)).Value
+            beamJointJ = Range("F2", Range("H2").End(xlDown)).Value
+            beamReleasei = Range("I2", Range("I2").End(xlDown)).Value
+            beamReleasej = Range("J2", Range("J2").End(xlDown)).Value
+            beamSystem = Range("L2", Range("L2").End(xlDown)).Value
+            
+            'count the total amount of beams
+            beamTotal = UBound(beamSection) - LBound(beamSection) + 1
+        
+        
+        'Grab column info
+            Worksheets("column").Activate
+            columnID = Range("A2", Range("A2").End(xlDown)).Value
+            columnSection = Range("B2", Range("B2").End(xlDown)).Value
+            columnJointi = Range("C2", Range("E2").End(xlDown)).Value
+            columnJointJ = Range("F2", Range("H2").End(xlDown)).Value
+            columnReleasei = Range("I2", Range("I2").End(xlDown)).Value
+            columnReleasej = Range("J2", Range("J2").End(xlDown)).Value
+            columnRot = Range("K2", Range("K2").End(xlDown)).Value
+            columnSystem = Range("M2", Range("M2").End(xlDown)).Value
+            
+            'grab total number of columns
+            columnTotal = UBound(columnSection) - LBound(columnSection) + 1
+            
+            
+        'Grab brace info
+            Worksheets("brace").Activate
+            braceID = Range("A2", Range("A2").End(xlDown)).Value
+            braceSection = Range("B2", Range("B2").End(xlDown)).Value
+            braceJointi = Range("C2", Range("E2").End(xlDown)).Value
+            braceJointJ = Range("F2", Range("H2").End(xlDown)).Value
+            braceReleasei = Range("I2", Range("I2").End(xlDown)).Value
+            braceReleasej = Range("J2", Range("J2").End(xlDown)).Value
+            braceSystem = Range("M2", Range("M2").End(xlDown)).Value
+            
+            'grab total number of braces
+            braceTotal = UBound(braceSection) - LBound(braceSection) + 1
+          
+            
+        'Grab Diaphragm info
+            Worksheets("diaphragm").Activate
+            diaID = Range("A2", Range("A2").End(xlDown)).Value
+            diaSection = Range("B2", Range("B2").End(xlDown)).Value
+            diaJ1 = Range("C2", Range("E2").End(xlDown)).Value
+            diaJ2 = Range("F2", Range("H2").End(xlDown)).Value
+            diaJ3 = Range("I2", Range("K2").End(xlDown)).Value
+            diaJ4 = Range("L2", Range("N2").End(xlDown)).Value
+            diaOrient = Range("O2", Range("O2").End(xlDown)).Value
+            
+            'Count the total number of area sections
+            diaTotal = UBound(diaSection) - LBound(diaSection) + 1
+            
+        'Grab lineLoad Info
+            Worksheets("lineLoad").Activate
+            lineLoadID = Range("A2", Range("A2").End(xlDown)).Value
+            lineLoadCase = Range("B2", Range("B2").End(xlDown)).Value
+            lineLoadJointi = Range("C2", Range("E2").End(xlDown)).Value
+            lineLoadJointJ = Range("F2", Range("H2").End(xlDown)).Value
+            lineLoadFx = Range("I2", Range("I2").End(xlDown)).Value
+            lineLoadFy = Range("J2", Range("J2").End(xlDown)).Value
+            lineLoadFz = Range("K2", Range("K2").End(xlDown)).Value
+            
+            'count the total amount of lineLoads
+            lineLoadTotal = UBound(lineLoadID) - LBound(lineLoadID) + 1
+            
+            
+        Worksheets("Execute").Activate 'puts the view back on the execute page
+
+'Create columns in ETABS model-----------------------------
+    
+    For i = 1 To columnTotal
+        'name = "Col" & i 'unique name of element to be used for additional assignments. C for column
+        name = columnID(i, 1)
+        section = columnSection(i, 1) 'Coerces Variant type into String, required for FrameObj input
+        section = UCase(section) 'Capitalize all letters of section name so ETABS can match it correctly
+        'Multiply all joint values by 12 to convert from ft to inches for ETABS
+        ret = mySapModel.FrameObj.AddByCoord(columnJointi(i, 1) * 12, columnJointi(i, 2) * 12, columnJointi(i, 3) * 12, columnJointJ(i, 1) * 12, columnJointJ(i, 2) * 12, columnJointJ(i, 3) * 12, name, section, name)
+        
+        'set the column rotation of the recently assigned frame
+        ret = mySapModel.FrameObj.SetLocalAxes(name, columnRot(i, 1))
+        
+        'set column releases
+        If columnReleasei(i, 1) Then
+            ii = pin 'set to pinned
+            startValue = pinVal
+            Else
+                ii = fixed
+                startValue = fixVal
+        End If
+            
+        If columnReleasej(i, 1) Then
+            jj = pin
+            endValue = pinVal
+            Else
+                jj = fixed
+                endValue = fixVal
+        End If
+            
+        
+    Next i ' End of loop
+    ret = mySapModel.View.RefreshView(0, False)
+
+'Create beams in ETABS model------------------------------
+
+    For i = 1 To beamTotal
+        'name = "B" & i 'unique name of element to be used for additional assignments. B for beams
+        name = beamID(i, 1)
+        section = beamSection(i, 1) 'Coerces Variant type into String, required for FrameObj input
+        section = UCase(section) 'Capitalize all letters of section name so ETABS can match it correctly
+        'Multiply all joint values by 12 to convert from ft to inches for ETABS
+        ret = mySapModel.FrameObj.AddByCoord(beamJointi(i, 1) * 12, beamJointi(i, 2) * 12, beamJointi(i, 3) * 12, beamJointJ(i, 1) * 12, beamJointJ(i, 2) * 12, beamJointJ(i, 3) * 12, name, section, name)
+        
+        'set beam releases
+        If beamReleasei(i, 1) Then
+            ii = pin 'set to pinned
+            startValue = pinVal
+            Else
+                ii = fixed
+                startValue = fixVal
+        End If
+            
+        If beamReleasej(i, 1) Then
+            jj = pin
+            endValue = pinVal
+            Else
+                jj = fixed
+                endValue = fixVal
+        End If
+            
+        
+        
+        ret = mySapModel.FrameObj.SetReleases(name, ii, jj, startValue, endValue)
+        
+    Next i ' End of loop
+    
+    ret = mySapModel.View.RefreshView(0, False)
+
+'Create braces in ETABS model------------------------------
+
+    For i = 1 To braceTotal
+        'name = "d" & i 'unique name of element to be used for additional assignments. d for diagonal
+        name = braceID(i, 1)
+        section = braceSection(i, 1) 'Coerces Variant type into String, required for FrameObj input
+        section = UCase(section) 'Capitalize all letters of section name so ETABS can match it correctly
+        'Multiply all joint values by 12 to convert from ft to inches for ETABS
+        ret = mySapModel.FrameObj.AddByCoord(braceJointi(i, 1) * 12, braceJointi(i, 2) * 12, braceJointi(i, 3) * 12, braceJointJ(i, 1) * 12, braceJointJ(i, 2) * 12, braceJointJ(i, 3) * 12, name, section, name)
+       
+         'set brace releases
+        If braceReleasei(i, 1) Then
+            ii = pin 'set to pinned
+            startValue = pinVal
+            Else
+                ii = fixed
+                startValue = fixVal
+        End If
+            
+        If braceReleasej(i, 1) Then
+            jj = pin
+            endValue = pinVal
+            Else
+                jj = fixed
+                endValue = fixVal
+        End If
+            
+        
+        
+        ret = mySapModel.FrameObj.SetReleases(name, ii, jj, startValue, endValue)
+        
+    Next i ' End of loop
+    Worksheets("Execute").Range("E19").Value = Time()
+    Worksheets("Execute").Range("F19").Value = braceTotal & " braces," & beamTotal & " beams," & columnTotal & " columns"
+    ret = mySapModel.View.RefreshView(0, False)
+       
+       
+'Create diaphragm in ETABS model------------------------------
+ReDim x(3) 'creates an empty array with (3+1) slots
+ReDim y(3)
+ReDim z(3)
+Dim semiDia As String
+semiDia = "semiDia"
+
+ret = mySapModel.Diaphragm.SetDiaphragm(semiDia, SemiRigid:=True)
+For i = 1 To diaTotal
+    x(0) = diaJ1(i, 1) * 12
+    y(0) = diaJ1(i, 2) * 12
+    z(0) = diaJ1(i, 3) * 12
+    x(1) = diaJ2(i, 1) * 12
+    y(1) = diaJ2(i, 2) * 12
+    z(1) = diaJ2(i, 3) * 12
+    x(2) = diaJ3(i, 1) * 12
+    y(2) = diaJ3(i, 2) * 12
+    z(2) = diaJ3(i, 3) * 12
+    x(3) = diaJ4(i, 1) * 12
+    y(3) = diaJ4(i, 2) * 12
+    z(3) = diaJ4(i, 3) * 12
+    
+    'name = "F" & i ' F for floor
+    name = diaID(i, 1)
+    section = "Slab1" 'temporary manual assignment to get the code working. in the future, this name should come from the revit model directly
+    'section = diaSection(i)
+   ret = mySapModel.AreaObj.AddByCoord(4, x, y, z, name, section)
+   ret = mySapModel.AreaObj.SetDiaphragm(name, semiDia)
+   
+Next i 'End of loop
+Worksheets("Execute").Range("F20").Value = diaTotal & " diaphragms"
+Worksheets("Execute").Range("E20").Value = Time()
+ret = mySapModel.View.RefreshView(0, False)
+
+
+
+'Create lineLoads in ETABS model------------------------------------------------------
+    ReDim lineLoadSection(lineLoadTotal)
+    'Loop through all line loads to match them up with the appropriate beam. Note line loads may only exist over a single beam to match
+    Dim Flag As Boolean
+    Flag = True
+    
+    Dim deg As Long 'create a value for the degree of precision, use when rounding points to find matches
+    deg = 2 ' adjust this value if geometry beccomes tight
+            For i = 1 To lineLoadTotal
+                        loadi = Round(lineLoadJointi(i, 1), deg) & Round(lineLoadJointi(i, 2), deg) & Round(lineLoadJointi(i, 3), deg)
+                        loadj = Round(lineLoadJointJ(i, 1), deg) & Round(lineLoadJointJ(i, 2), deg) & Round(lineLoadJointJ(i, 3), deg)
+                Flag = True
+                
+                    For j = 1 To beamTotal
+                      If Flag = True Then 'if we haven't reached a match with the current lineLoad, check the next beam
+                        beami = Round(beamJointi(j, 1), deg) & Round(beamJointi(j, 2), deg) & Round(beamJointi(j, 3), deg)
+                        beamj = Round(beamJointJ(j, 1), deg) & Round(beamJointJ(j, 2), deg) & Round(beamJointJ(j, 3), deg)
+                        
+                        
+                        'Check if the first node lines up with the first
+                        If loadi = beami And Flag = True Then
+                            If loadj = beamj Then
+                                lineLoadSection(i) = beamID(j, 1) 'assign the matching index
+                                Flag = False 'exit the loop if there's a match
+                                 Debug.Print lineLoadID(i, 1)
+                            End If
+                        End If
+                        
+                        'Check if the first node lines up with the second
+                        If loadj = beami And Flag = True Then
+                            If loadi = beamj Then
+                                lineLoadSection(i) = beamID(j, 1)
+                                Flag = False
+                                Debug.Print lineLoadID(i, 1)
+                            End If
+                        End If
+                       End If
+                    Next j 'go to the next beam
+                    Debug.Print "Iterating on i = " & i
+                Flag = False 'if we didn't reach a match, then Do loop will exit
+                
+                
+            Next i 'go to the next line load
+    'End of loop to match line loads ---------------------
+    
+    'Assign beam loads
+    For i = 1 To lineLoadTotal
+        'assign the Fz (klf) load onto the frame, place load in the global Z direction. negative Fz will apply the force downwards. etabs currently accepts it as kip/in, so it is divided by 12
+        ret = mySapModel.FrameObj.SetLoadDistributed(lineLoadSection(i), UCase(lineLoadCase(i, 1)), 1, 6, 0, 1, lineLoadFz(i, 1) / 12, lineLoadFz(i, 1) / 12, "Global")
+    Next i
+Worksheets("Execute").Range("F21").Value = lineLoadTotal & " line loads"
+Worksheets("Execute").Range("E20").Value = Time()
+'-------------------------------------------------------------
+    'Write Current Time to
+    
+    Worksheets("Execute").Range("F14").Interior.Color = RGB(148, 185, 255)
+  'save model
+  ret = mySapModel.File.Save(ModelPath)
+
+  'run analysis
+  'ret = mySapModel.Analyze.RunAnalysis
+
+  'close ETABS
+  myETABSObject.ApplicationExit (False)
+
+  'clean up variables
+  Set mySapModel = Nothing
+  Set myETABSObject = Nothing
+    Worksheets("Execute").Range("G14").Interior.Color = RGB(148, 185, 255)
+    Worksheets("Execute").Range("H14").Interior.Color = RGB(148, 185, 255)
+  If ret = 0 Then
+    MsgBox "API script completed successfully."
+    
+  Else
+    MsgBox "API script FAILED to complete."
+  End If
+
+  Exit Sub
+
+ErrHandler:
+    MsgBox "Cannot run API script: " & Err.Description
+
+
+
+
+
+
+End Sub
